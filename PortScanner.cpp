@@ -116,7 +116,55 @@ public:
         }
 #else
 		int flags = fcntl(sock, F_GETFL, 0);
+		if(flags < 0 || fcntl(sock, F_SETFL, flags | O_NONBLOCK) < 0) {
+            CLOSE_SOCKET(sock);
+            return false;
+        }
+#endif
 
+        sockaddr_in addr;
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(port);
+		addr.sin_addr.s_addr = inet_addr(ip.c_str());
+
+		//attempt connection
+		int result = connect(sock, (sockaddr*)&addr, sizeof(addr));
+
+#ifdef _WIN32
+        if (result == SOCKET_ERROR && WSAGetLastError() == WSAEWOULDBLOCK) {
+            fd_set fdset;
+            timeval tv;
+            FD_ZERO(&fdset);
+            FD_SET(sock, &fdset);
+            tv.tv_sec = timeoutSeconds;
+            tv.tv_usec = 0;
+
+            result = select(0, NULL, &fdset, NULL, &tv);
+            if (result == 1) {
+                int optval;
+                int optlen = sizeof(optval);
+                getsockopt(sock, SOL_SOCKET, SO_ERROR, (char*)&optval, &optlen);
+                if (optval == 0) result = 0;
+            }
+        }
+#else
+		if (result < 0 && errno == EINPROGRESS) {
+			fd_set fdset;
+			timeval tv;
+			FD_ZERO(&fdset);
+			FD_SET(sock, &fdset);
+			tv.tv_sec = timeoutSeconds;
+			tv.tv_usec = 0;
+
+			result = select(sock + 1, NULL, &fdset, NULL, &tv);
+			if (result == 1) {
+				int optval;
+				socklen_t optlen = sizeof(optval);
+				getsockotp(sock, SOL_SOCKET, SO_ERROR, &optval, &optlen);
+				if (optval == 0) result = 0;
+			}
+		}
+#endif
 
 
 
