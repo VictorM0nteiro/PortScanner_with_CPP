@@ -104,6 +104,19 @@ public:
         knownVulnerabilities["RDP"].push_back("Check authentication protocols");
     }
 
+	bool isPortOpen(const std::string& ip, int port, int timeoutSeconds = 1) {
+        int sock = socket(AF_INET, SOCK_STREAM, 0);
+        if (sock < 0) return false;
+
+#ifdef _WIN32
+        unsigned long mode = 1;
+		if (ioctlsocket(sock, FIONBIO, &mode) != 0) {
+            CLOSE_SOCKET(sock);
+            return false;
+        }
+#else
+		int flags = fcntl(sock, F_GETFL, 0);
+
 
 
 
